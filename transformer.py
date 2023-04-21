@@ -65,21 +65,22 @@ if __name__ == "__main__":
     if config["cuda"]:
         model.cuda()
 
-    model.train()
+    # TODO COMMENT THIS BACK IN ONCE READY
+    # model.train()
     for e in range(EPOCH):
         for i, batch in enumerate(train_gen):
-            optimizer.zero_grad()
+            # optimizer.zero_grad()
 
-            pa = batch["pred_ans"][0]
-            q = batch["q"][0]
-            pas = batch["pred_ans_sent"][0]
+            pa = batch["pred_ans"]
+            q = batch["q"]
+            pas = batch["pred_ans_sent"]
             y = batch["label"]
 
-            prob = model(pa, q, pas)
-            train_loss = torch.sum(criterion(prob, y))
-            train_loss.backward()
+            # prob = model(pa, q, pas)
+            # train_loss = torch.sum(criterion(prob, y))
+            # train_loss.backward()
 
-            optimizer.step()
+            # optimizer.step()
         
         train_gen.reset()
             
