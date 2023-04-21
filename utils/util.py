@@ -22,7 +22,7 @@ class BatchGen(object):
 
     def reset(self):
         if self.is_training:
-            indices = list(range(self.batches))
+            indices = list(range(len(self.batches)))
             random.shuffle(indices)
             self.batches = []
         self.offset = 0
