@@ -83,6 +83,10 @@ if __name__ == "__main__":
             # optimizer.step()
         
         train_gen.reset()
+
+        
+            
+# python transformer.py --data_path new_data/final_albert_blank_eval.jsonl
             
             
 
