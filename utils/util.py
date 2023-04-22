@@ -14,7 +14,7 @@ class BatchGen(object):
 
         if is_training:
             indices = list(range(self.total_num))
-            random.shuffle(indices)
+            # random.shuffle(indices)
             self.data = [self.data[idx] for idx in indices]
 
         self.batches = [self.data[i: i+batch_size] for i in range(0, self.total_num, batch_size)]

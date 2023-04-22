@@ -32,60 +32,23 @@ class PositionalEncoding(nn.Module):
             return x + emb_unsq
         else:
             return x + self.emb(indices_to_embed)
-
-class Transformer(nn.Module):
-    def __init__(self, vocab_index, vocab_size, num_positions, d_model, num_classes, num_layers, nhead):
-        """
-        :param vocab_size: vocabulary size of the embedding layer
-        :param num_positions: max sequence length that will be fed to the model; should be 20
-        :param d_model: see TransformerLayer
-        :param d_internal: see TransformerLayer
-        :param num_classes: number of classes predicted at the output layer; should be 3
-        :param num_layers: number of TransformerLayers to use; can be whatever you want
-        """
+    
+class Model1(nn.Module):
+    def __init__(self, vocab_size, num_positions, d_model, num_classes, num_layers, nhead):
         super().__init__()
-
-        self.vocab_index = vocab_index
-        
         self.embedding = nn.Embedding(vocab_size, d_model)
-
         self.pos_embedding = PositionalEncoding(d_model, num_positions, True)
 
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, batch_first=True)
-        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers = num_layers)
-
-        self.lin = nn.Linear(d_model, num_classes)
-        self.log_softmax = nn.LogSoftmax(dim = 2)
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=d_model*3, nhead=nhead, batch_first = True)
+        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=num_layers)
+        
+        self.lin = nn.Linear(d_model*3, num_classes)
+        self.sm = nn.Softmax(dim = 2)
 
         self.mask = np.zeros((num_positions, num_positions))
         for i in range(num_positions):
             for j in range(i+1):
                 self.mask[i][j] = 1
-
-    # ASSUME INDICES ARE ALREADY ENCODED
-    def forward(self, indices):
-        """
-
-        :param indices: list of input indices
-        :return: A tuple of the softmax log probabilities (should be a 20x3 matrix) and a list of the attention
-        maps you use in your layers (can be variable length, but each should be a 20x20 matrix)
-        """
-        X = self.embedding(indices)
-
-        pos_X = self.pos_embedding(X)
-        X += pos_X
-
-        output = self.transformer_encoder(X, mask = torch.from_numpy(self.mask))     
-
-        lin_result = self.lin(output)
-        softmax = self.softmax(lin_result)
-
-        return softmax
-    
-class Model1(nn.Module):
-    def __init__(self):
-        # TODO
-        print()
 
     def forward(self, s, q, pa):
         # Encoding Stage:
@@ -93,10 +56,25 @@ class Model1(nn.Module):
         # Positiional Embed s, q, pa (word by word) -> [batch size, num_words, emb_dim]
 
         # Concat the two -> [batch_size, num_words, emb_dim * 2]
+        emb_s = self.embedding(s)
+        emb_q = self.embedding(q)
+        emb_pa = self.embedding(pa)
 
+        emb_s += self.pos_embedding(emb_s)
+        emb_q += self.pos_embedding(emb_q)
+        emb_pa += self.pos_embedding(emb_pa)
+
+        X = torch.cat((emb_s, emb_q, emb_pa), 2)
+        
         # Run through Transformer
-
+        output = self.transformer_encoder(X, mask = torch.from_numpy(self.mask))     
+        
         # Run Through lin layer
+        lin_result = self.lin(output)
 
         # Softmax
-        return prob
+        prob = self.sm(lin_result)
+
+        # TODO what happens if we run this through another linear layer to further reduce into batch_size, 1, 2 to then get a result
+        # rather than have batch_size, sent_size, 2
+        return prob[:,-1,:]
