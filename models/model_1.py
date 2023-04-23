@@ -67,7 +67,9 @@ class Model1(nn.Module):
         X = torch.cat((emb_s, emb_q, emb_pa), 2)
         
         # Run through Transformer
-        output = self.transformer_encoder(X, mask = torch.from_numpy(self.mask))     
+        mask = torch.from_numpy(self.mask)
+        tensor_mask = mask == 1
+        output = self.transformer_encoder(X, mask = tensor_mask)     
         
         # Run Through lin layer
         lin_result = self.lin(output)

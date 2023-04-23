@@ -31,7 +31,7 @@ def parse_args():
     parser.add_argument('--decay', type=float, default=0)
     
     # Turn on CUDA or not
-    parser.add_argument("--cuda", type=bool, default = False)
+    parser.add_argument("--cuda", type=bool, default = True)
     config = parser.parse_args().__dict__
     return config
 
