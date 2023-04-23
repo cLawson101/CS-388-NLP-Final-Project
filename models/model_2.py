@@ -97,15 +97,53 @@ class BiLSTM(nn.Module):
         if dropout:
             H = F.dropout(H, self.pdrop, training=self.training)
         return H, (h0, c0)
+    
+class Model2Encoder(nn.Module):
+    def __init__(self):
+        self.lstm = BiLSTM()
+
+        self.word_emb = nn.Embedding()
+        self.char_emb = nn.Embedding()
+    
+    def forward(self, s, s_mask, q, q_mask, s_char, q_char):
+        # Preprocessing
+        # create s and q char mask
+        s_char_mask = s_char.copy()
+        s_char_mask[s_char_mask != 1] = 0
+
+        q_char_mask = q_char.copy()
+        q_char_mask[q_char_mask != 1] = 0
+        # If have glove, insert into embedding layer
+
+        # Word Level Embedding
+        s_word = self.word_emb(s)
+        q_word = self.word_emb(q)
+
+        # Character level Embedding
+        s_char_emb = self.char_emb(s_char)
+        q_char_emb = self.char_emb(q_char)
+        # TODO might need more modification for s_char_emb
+        # TODO might need more modification for q_char_emb
+
+        # Character level BiLSTM
+        _H, (s_char, _c) = self.lstm(s_char_emb, s_char_mask)
+        # TODO maybe more modification here
+        _H, (q_char, _c) = self.lstm(q_char_emb, q_char_mask)
+        # TODO maybe more modification here
+
+        # Concat
+        s_tensor = torch.cat([s_word, s_char], axis = -1)
+        q_tensor = torch.cat([q_word, q_char], axis = -1)
+        return s_tensor, q_tensor
 
 class Model2(nn.Module):
     def __init__(self, tbd):
         super().__init__()
         # ENCODE
-        # TODO TBD
+        self.encode = Model2Encoder()
 
         # First BiLSTMs
-        # TODO TBD
+        self.lstm1 = BiLSTM()
 
         # First Attention Layer
         self.attention_start = Attention()
@@ -123,17 +161,25 @@ class Model2(nn.Module):
 
         self.sm = nn.Softmax(dim = -1)
 
-    def forward(self, s, q):
+    def forward(self, s, q, s_char, q_char):
         # TODO figure out mask situation
         # TODO Mask is 1 if the value doesn't exist, and 0 if it does
+        s_mask = s.copy()
+        s_mask[s_mask != 1] = 0
+        # TODO TEST THIS
+        q_mask = q.copy()
+        q_mask[q_mask != 1] = 0
+
+        
         # I.e. if sentence is too short, 1's will be in the place where the sentence does
         # Not exist
 
         # Encoding
+        s_emb, q_emb = self.encode(s, s_mask, q, q_mask, s_char, q_char)
 
         # First BiLSTM
-        lstm_1_s = None
-        lstm_1_q = None
+        lstm_1_s = self.lstm1(s_emb, s_mask)
+        lstm_1_q = self.lstm1(q_emb, q_mask)
 
         # Inference
         s_tilde, q_tilde = self.attention_start(lstm_1_s, lstm_1_q, s_mask, q_mask)
