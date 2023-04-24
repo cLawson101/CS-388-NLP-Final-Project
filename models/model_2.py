@@ -79,7 +79,7 @@ class Attention(nn.Module):
 
 class BiLSTM(nn.Module):
     def __init__(self, input_size, hidden_size, dropout, num_layers):
-        super().__init()
+        super().__init__()
         self.hidden_size = hidden_size
         self.input_size = input_size  # TODO: verify the input size
         self.pdrop = dropout
@@ -97,43 +97,127 @@ class BiLSTM(nn.Module):
         if dropout:
             H = F.dropout(H, self.pdrop, training=self.training)
         return H, (h0, c0)
+    
+class Model2Encoder(nn.Module):
+    def __init__(self, vocab_size, char_size, d_model, hidden_size, dropout, num_layers):
+        super().__init__()
+        self.lstm = BiLSTM(d_model, hidden_size*2, dropout, num_layers)
+
+        self.d_model = d_model
+        self.hidden_size = hidden_size
+        self.word_emb = nn.Embedding(vocab_size, d_model)
+        self.char_emb = nn.Embedding(char_size, d_model)
+    
+    def forward(self, s, s_mask, q, q_mask, s_char, q_char):
+        # Preprocessing
+        # create s and q char mask
+        s_char_mask = s_char.clone()
+        s_char_mask[s_char_mask != 0] = -1
+        s_char_mask[s_char_mask == 0] = 1
+        s_char_mask[s_char_mask == -1] = 0
+
+        q_char_mask = q_char.clone()
+        q_char_mask[q_char_mask != 0] = -1
+        q_char_mask[q_char_mask == 0] = 1
+        q_char_mask[q_char_mask == -1] = 0
+        # If have glove, insert into embedding layer
+
+        # Word Level Embedding
+        s_word = self.word_emb(s)
+        q_word = self.word_emb(q)
+
+        # Character level Embedding
+        s_char_emb = self.char_emb(s_char)
+        q_char_emb = self.char_emb(q_char)
+
+        bs = 128
+        ld = 150
+        lq = 150
+        lw = 40
+
+        # TODO might need more modification for s_char_emb
+        s_char_emb = s_char_emb.contiguous().reshape(-1, lw, self.d_model)
+        q_char_emb = q_char_emb.contiguous().reshape(-1, lw, self.d_model)
+        
+        s_char_mask = s_char_mask.contiguous().reshape(-1, lw)
+        q_char_mask = q_char_mask.contiguous().reshape(-1, lw)
+        # TODO might need more modification for q_char_emb
+
+        
+        print("s_word.shape", s_word.shape)
+        print("s_char_emb.shape", s_char_emb.shape)
+
+        # Character level BiLSTM
+        _H, (s_char, _c) = self.lstm(s_char_emb, s_char_mask)
+        # TODO maybe more modification here
+        s_char = s_char.contiguous().reshape(bs, ld, 2*self.hidden_size)
+        _H, (q_char, _c) = self.lstm(q_char_emb, q_char_mask)
+        # TODO maybe more modification here
+        q_char = q_char.contiguous().reshape(bs, ld, 2*self.hidden_size)
+
+        # Concat
+        print("s_word.shape", s_word.shape)
+        print("s_char.shape", s_char.shape)
+        s_tensor = torch.cat([s_word, s_char], axis = -1)
+        q_tensor = torch.cat([q_word, q_char], axis = -1)
+        return s_tensor, q_tensor
 
 class Model2(nn.Module):
-    def __init__(self, tbd):
+    def __init__(self, vocab_size, char_size, d_model, hidden_size, dropout, num_layers):
         super().__init__()
         # ENCODE
-        # TODO TBD
+        self.encode = Model2Encoder(vocab_size, 
+                                    char_size, 
+                                    d_model, 
+                                    hidden_size,
+                                    dropout=dropout,
+                                    num_layers=num_layers)
 
         # First BiLSTMs
-        # TODO TBD
+        self.lstm1 = BiLSTM(d_model + 2* hidden_size, hidden_size, dropout, num_layers)
 
         # First Attention Layer
-        self.attention_start = Attention()
+        self.attention_start = Attention(dropout, False, hidden_size)
 
         # Second BiLSTMs
-        self.lstm2_s = BiLSTM()
-        self.lstm2_q = BiLSTM()
+        self.lstm2_s = BiLSTM(hidden_size * 2, hidden_size, dropout, num_layers)
+        self.lstm2_q = BiLSTM(hidden_size * 2, hidden_size, dropout, num_layers)
         
         # Second Attention Layer
-        self.attention_s = Attention()
-        self.attention_q = Attention()
+        self.attention_s = Attention(dropout, True, hidden_size)
+        self.attention_q = Attention(dropout, True, hidden_size)
 
+        # Third BiLSTMs
+        self.lstm3_s = BiLSTM(hidden_size * 4, hidden_size, dropout, num_layers)
+        self.lstm3_q = BiLSTM(hidden_size * 4, hidden_size, dropout, num_layers)
         # FFN
-        self.linear = nn.Linear()
+        self.linear = nn.Linear(hidden_size * 4, 2)
 
         self.sm = nn.Softmax(dim = -1)
 
-    def forward(self, s, q):
+    def forward(self, s, q, s_char, q_char):
         # TODO figure out mask situation
         # TODO Mask is 1 if the value doesn't exist, and 0 if it does
+        s_mask = s.clone()
+        s_mask[s_mask != 0] = -1
+        s_mask[s_mask == 0] = 1
+        s_mask[s_mask == -1] = 0
+
+        # TODO TEST THIS
+        q_mask = q.clone()
+        q_mask[q_mask != 0] = -1
+        q_mask[q_mask == 0] = 1
+        q_mask[q_mask == -1] = 0
+
         # I.e. if sentence is too short, 1's will be in the place where the sentence does
         # Not exist
 
         # Encoding
+        s_emb, q_emb = self.encode(s, s_mask, q, q_mask, s_char, q_char)
 
         # First BiLSTM
-        lstm_1_s = None
-        lstm_1_q = None
+        lstm_1_s = self.lstm1(s_emb, s_mask)
+        lstm_1_q = self.lstm1(q_emb, q_mask)
 
         # Inference
         s_tilde, q_tilde = self.attention_start(lstm_1_s, lstm_1_q, s_mask, q_mask)
