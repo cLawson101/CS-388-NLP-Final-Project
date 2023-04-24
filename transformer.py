@@ -17,8 +17,10 @@ def parse_args():
     parser.add_argument("--data_path", default = "new_data/final_albert_blank_eval.jsonl", type = str)
     parser.add_argument("--vocab_path", default = "new_data/unique_words_v3.txt", type = str)
     parser.add_argument("--max_epochs", type=int, default = 1)
-    parser.add_argument("--max_char", type=int, default = 650)
-    parser.add_argument("--batch_size", type=int, default = 128)
+    parser.add_argument("--max_char", type=int, default = 700)
+    parser.add_argument("--batch_size", type=int, default = 150)
+    parser.add_argument("--max_sent_len", type=int, default = 150)
+
     
     # Model Stuff
     parser.add_argument("--nhead", type=int, default = 1)
@@ -64,10 +66,13 @@ def load_vocab(path):
             master_vocab.append(line)
     return master_vocab
 
-def embed(sent, vocab, max_len = 150):
+def embed(sent, vocab, max_len):
     sent_emb = [0] * max_len
     for idx, word in enumerate(sent):
         word = word.encode("utf8")
+        
+        if idx == max_len:
+            return sent_emb
 
         if word in vocab:
             word_emb = vocab.index(word)+2
@@ -81,8 +86,10 @@ def embed(sent, vocab, max_len = 150):
 def pretty_print(vocab):
     for idx, word in enumerate(vocab):
         print("%5d, %20s" % (idx, word))
+    exit()
 
 def evaluate(net, data_loader):
+    final_acc = []
     for i, batch in enumerate(data_loader):
         pa = batch["pred_ans"]
         q = batch["q"]
@@ -95,9 +102,9 @@ def evaluate(net, data_loader):
         tok_q = [word_tokenize(s.lower()) for s in q]
         tok_pas = [word_tokenize(s.lower()) for s in pas]
 
-        emb_pa = [embed(s, master_vocab) for s in tok_pa]
-        emb_q = [embed(s, master_vocab) for s in tok_q]
-        emb_pas = [embed(s, master_vocab) for s in tok_pas]
+        emb_pa = [embed(s, master_vocab, max_sent_len) for s in tok_pa]
+        emb_q = [embed(s, master_vocab, max_sent_len) for s in tok_q]
+        emb_pas = [embed(s, master_vocab, max_sent_len) for s in tok_pas]
 
         tensor_pa = torch.LongTensor(np.array(emb_pa))
         tensor_q = torch.LongTensor(np.array(emb_q))
@@ -107,7 +114,8 @@ def evaluate(net, data_loader):
         predictions = np.argmax(prob.detach().numpy(), axis = 1)
 
         acc = sum(predictions[i] == y[i] for i in range(len(predictions))).item()
-        print("TEST ACCURACY: %4.2f" % (acc))
+        final_acc.append(acc/100)
+    return (sum(final_acc) / len(final_acc))
 
 def char_tokenize(sent, char_max):
     char_rep = [0] * char_max
@@ -117,7 +125,6 @@ def char_tokenize(sent, char_max):
             if i == char_max:
                 print("NOT ENOUGH CHARACTER SPACE")
                 exit()
-                return char_rep
             char_rep[i] = ord(c) - 35
             i+=1
     return char_rep
@@ -126,34 +133,38 @@ if __name__ == "__main__":
     config = parse_args()
     
     master_vocab = load_vocab(config["vocab_path"])
+    # pretty_print(master_vocab)
 
     char_max = config["max_char"]
 
     # LOAD DATA
     data, label = load_data(config["data_path"])
 
-    train_X, test_X, train_y, test_y = train_test_split(data, label, test_size=0.33, random_state = 420)
+    data = data[:11250]
+    label = label[:11250]
+
+    train_X, test_X, train_y, test_y = train_test_split(data[:11250], label[:11250], test_size=(1/3), random_state = 420)
 
     train_gen = BatchGen(train_X, train_y, config["batch_size"], True)
     test_gen = BatchGen(test_X, test_y, config["batch_size"], True)
     
     # MODEL SPECIFIC STUFF
-    # model = Model1(
-    #     vocab_size = len(master_vocab) + 2, 
-    #     num_positions = 150, 
-    #     d_model = config["d_model"], 
-    #     num_classes = 2,
-    #     num_layers = config["num_layers"],
-    #     nhead = config["nhead"]
-    # )
-    model = Model2(
+    model = Model1(
         vocab_size = len(master_vocab) + 2, 
-        char_size = 8687+5, 
+        num_positions = config["max_sent_len"], 
         d_model = config["d_model"], 
-        hidden_size = config["hidden_size"], 
-        dropout = config["dropout"],
-        num_layers= config["num_layers"]
+        num_classes = 2,
+        num_layers = config["num_layers"],
+        nhead = config["nhead"]
     )
+    # model = Model2(
+    #     vocab_size = len(master_vocab) + 2, 
+    #     char_size = 8687+5, 
+    #     d_model = config["d_model"], 
+    #     hidden_size = config["hidden_size"], 
+    #     dropout = config["dropout"],
+    #     num_layers= config["num_layers"]
+    # )
     
     # OPTIMIZER 
     # TODO UNCOMMENT ONCE MODEL IS NOT NONE
@@ -166,18 +177,25 @@ if __name__ == "__main__":
     criterion = nn.CrossEntropyLoss()
 
     EPOCH = config["max_epochs"]
+    max_sent_len = config["max_sent_len"]
 
 
     if config["cuda"]:
         model.cuda()
+    
+    print("%.5f,%2d,%2d,%2d,%2d,%.2f," % (config["lr"],
+                                         config["nhead"],
+                                         config["num_layers"],
+                                         config["d_model"],
+                                         config["hidden_size"],
+                                         config["dropout"]
+                                         ), end = "")
 
-    # TODO COMMENT THIS BACK IN ONCE READY
     model.train()
     for e in range(EPOCH):
         loss_epoch = 0.0
         for i, batch in enumerate(train_gen):
             optimizer.zero_grad()
-
             pa = batch["pred_ans"]
             q = batch["q"]
             pas = batch["pred_ans_sent"]
@@ -193,9 +211,9 @@ if __name__ == "__main__":
             char_q = [char_tokenize(sent, char_max) for sent in tok_q]
             char_pas = [char_tokenize(sent, char_max) for sent in tok_pas]
 
-            emb_pa = [embed(s, master_vocab) for s in tok_pa]
-            emb_q = [embed(s, master_vocab) for s in tok_q]
-            emb_pas = [embed(s, master_vocab) for s in tok_pas]
+            emb_pa = [embed(s, master_vocab, max_sent_len) for s in tok_pa]
+            emb_q = [embed(s, master_vocab, max_sent_len) for s in tok_q]
+            emb_pas = [embed(s, master_vocab, max_sent_len) for s in tok_pas]
 
             tensor_pa = torch.LongTensor(np.array(emb_pa))
             tensor_q = torch.LongTensor(np.array(emb_q))
@@ -205,22 +223,15 @@ if __name__ == "__main__":
             tensor_q_char = torch.LongTensor(np.array(char_q))
             tensor_pas_char = torch.LongTensor(np.array(char_pas))
 
-            prob = model(tensor_pa, tensor_q,
-                         tensor_pa_char, tensor_q_char)
-            exit()
+            prob = model(tensor_pa, tensor_q, tensor_pas)
 
             loss = torch.sum(criterion(prob, y))
-            loss_epoch += loss.item()
+            loss_epoch += loss
             loss.backward()
 
             optimizer.step()
-        print("Epoch %2d, Loss %.4f" % (e, loss_epoch))
         train_gen.reset()
-
-print("Final Eval")
-
-evaluate(model, test_gen)
-            
-            
-
-    
+        print("%2d,%.4f," % (e, loss_epoch), end="")
+        test_loss = evaluate(model, test_gen)
+        test_gen.reset()
+        print("%.4f" % (test_loss))

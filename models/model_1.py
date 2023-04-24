@@ -2,6 +2,8 @@ import torch.nn as nn
 import torch
 import numpy as np
 
+DEBUG = False
+
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model: int, num_positions: int=20, batched=False):
         """
@@ -41,8 +43,8 @@ class Model1(nn.Module):
 
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=d_model*3, nhead=nhead, batch_first = True)
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=num_layers)
-        
-        self.lin = nn.Linear(d_model*3, num_classes)
+
+        self.lin = nn.Linear(d_model * 3, num_classes)
         self.sm = nn.Softmax(dim = 2)
 
         self.mask = np.zeros((num_positions, num_positions))
@@ -56,6 +58,7 @@ class Model1(nn.Module):
         # Positiional Embed s, q, pa (word by word) -> [batch size, num_words, emb_dim]
 
         # Concat the two -> [batch_size, num_words, emb_dim * 2]
+
         emb_s = self.embedding(s)
         emb_q = self.embedding(q)
         emb_pa = self.embedding(pa)
@@ -64,18 +67,52 @@ class Model1(nn.Module):
         emb_q += self.pos_embedding(emb_q)
         emb_pa += self.pos_embedding(emb_pa)
 
+        if DEBUG:
+            print("emb_s.shape")
+            print(emb_s.shape)
+
         X = torch.cat((emb_s, emb_q, emb_pa), 2)
         
         # Run through Transformer
         mask = torch.from_numpy(self.mask)
         tensor_mask = mask == 1
-        output = self.transformer_encoder(X, mask = tensor_mask)     
         
+        if DEBUG:
+            print("tensor_mask")
+            print(tensor_mask)
+            print(tensor_mask.type())
+        tensor_mask = tensor_mask.type(torch.FloatTensor)
+
+        if DEBUG:
+            print(tensor_mask.type())
+
+            print("X")
+            print(X.shape)
+            print(torch.isnan(X).sum())
+
+        # NANS GET INTRODUCED
+        output = self.transformer_encoder(X, mask = tensor_mask)
+
+        if DEBUG:
+            print("output")
+            print("output.shape")
+            print(output.shape)
+            print(torch.isnan(output).sum())
+
         # Run Through lin layer
         lin_result = self.lin(output)
 
+        if DEBUG:
+            print("linear")
+            print(lin_result.shape)
+            print(torch.isnan(lin_result).sum())
+
         # Softmax
         prob = self.sm(lin_result)
+
+        if DEBUG:
+            print("softmax")
+            print(torch.isnan(prob).sum())
 
         # TODO what happens if we run this through another linear layer to further reduce into batch_size, 1, 2 to then get a result
         # rather than have batch_size, sent_size, 2
