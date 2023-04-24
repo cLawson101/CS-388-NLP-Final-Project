@@ -1,0 +1,2 @@
+lr,nheads,num_layers,d_model,hidden_size,epoch,train_loss,test_acc
+
