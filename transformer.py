@@ -16,7 +16,7 @@ def parse_args():
     # parser.add_argument("--data_path", required=True, type = str)
     parser.add_argument("--data_path", default = "new_data/final_albert_blank_eval.jsonl", type = str)
     parser.add_argument("--vocab_path", default = "new_data/unique_words_v3.txt", type = str)
-    parser.add_argument("--max_epochs", type=int, default = 10)
+    parser.add_argument("--max_epochs", type=int, default = 2)
     parser.add_argument("--max_char", type=int, default = 700)
     parser.add_argument("--batch_size", type=int, default = 150)
     parser.add_argument("--max_sent_len", type=int, default = 150)
@@ -91,6 +91,8 @@ def pretty_print(vocab):
 def evaluate(net, data_loader):
     final_acc = []
     for i, batch in enumerate(data_loader):
+        if i == 6:
+            break
         pa = batch["pred_ans"]
         q = batch["q"]
         pas = batch["pred_ans_sent"]
@@ -183,18 +185,23 @@ if __name__ == "__main__":
     if config["cuda"]:
         model.cuda()
     
-    print("%.5f,%2d,%2d,%2d,%2d,%.2f," % (config["lr"],
-                                         config["nhead"],
-                                         config["num_layers"],
-                                         config["d_model"],
-                                         config["hidden_size"],
-                                         config["dropout"]
-                                         ), end = "")
+    
 
     model.train()
     for e in range(EPOCH):
         loss_epoch = 0.0
+        print("%.4f,%2d,%2d,%2d,%2d,%.2f," % (config["lr"],
+                                            config["nhead"],
+                                            config["num_layers"],
+                                            config["d_model"],
+                                            config["hidden_size"],
+                                            config["dropout"]
+                                            ), end = "")
         for i, batch in enumerate(train_gen):
+            
+            if i == 1:
+                break
+
             optimizer.zero_grad()
             pa = batch["pred_ans"]
             q = batch["q"]
@@ -228,7 +235,6 @@ if __name__ == "__main__":
             loss = torch.sum(criterion(prob, y))
             loss_epoch += loss
             loss.backward()
-
             optimizer.step()
         train_gen.reset()
         print("%2d,%.4f," % (e, loss_epoch), end="")

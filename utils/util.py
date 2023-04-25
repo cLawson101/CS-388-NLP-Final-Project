@@ -24,7 +24,7 @@ class BatchGen(object):
         if self.is_training:
             indices = list(range(len(self.batches)))
             random.shuffle(indices)
-            self.batches = []
+            self.batches = [self.batches[i] for i in indices]
         self.offset = 0
 
     def __len__(self):
