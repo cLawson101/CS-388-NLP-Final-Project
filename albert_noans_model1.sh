@@ -1,9 +1,9 @@
 #!/bin/sh
 echo "Starting Tests"
 
-for lr in 1e-3
+for lr in 1e-4 1e-3
 do
-	for nh in 4
+	for nh in 1 4
 	do
 		for nl in 1 4
 		do
