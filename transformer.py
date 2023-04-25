@@ -91,8 +91,6 @@ def pretty_print(vocab):
 def evaluate(net, data_loader):
     final_acc = []
     for i, batch in enumerate(data_loader):
-        if i == 6:
-            break
         pa = batch["pred_ans"]
         q = batch["q"]
         pas = batch["pred_ans_sent"]
@@ -198,10 +196,6 @@ if __name__ == "__main__":
                                             config["dropout"]
                                             ), end = "")
         for i, batch in enumerate(train_gen):
-            
-            if i == 1:
-                break
-
             optimizer.zero_grad()
             pa = batch["pred_ans"]
             q = batch["q"]
