@@ -17,7 +17,7 @@ def parse_args():
     parser.add_argument("--data_path", default = "new_data/final_albert_blank_eval.jsonl", type = str)
     parser.add_argument("--output_data_path", default = "output_data/final_albert_blank_output.tsv", type = str)
     parser.add_argument("--vocab_path", default = "new_data/unique_words_v3.txt", type = str)
-    parser.add_argument("--max_epochs", type=int, default = 3)
+    parser.add_argument("--max_epochs", type=int, default = 10)
     parser.add_argument("--max_char", type=int, default = 700)
     parser.add_argument("--batch_size", type=int, default = 150)
     parser.add_argument("--max_sent_len", type=int, default = 150)

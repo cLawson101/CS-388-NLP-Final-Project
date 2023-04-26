@@ -15,6 +15,7 @@ for dataset in datasets:
             for nl in nums_layers:
                 for dm in d_models:
                     for hs in d_internals:
+                        data_file = "{}_{}_{}_{}_{}_{}_output.tsv".format(dataset, lr, nh, nl, dm, hs)
                         print("Starting lr: {} nh: {} nl: {} dm: {} hs: {}".format(lr, nh, nl, dm, hs))
-                        command = "python transformer.py --data_path new_data/final_{}_eval.jsonl --lr {} --nhead {} --num_layers {} --d_model {} --hidden_size {} --output_data_path output_data/final_{}_output.csv >> test_output/{}.csv".format(dataset, lr, nh, nl, dm, hs, dataset, dataset)
+                        command = "python transformer.py --data_path new_data/final_{}_eval.jsonl --lr {} --nhead {} --num_layers {} --d_model {} --hidden_size {} --output_data_path output_data/{} >> test_output/{}.csv".format(dataset, lr, nh, nl, dm, hs, data_file, dataset)
                         os.system(command)
