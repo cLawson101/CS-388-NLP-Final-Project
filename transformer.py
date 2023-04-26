@@ -16,7 +16,7 @@ def parse_args():
     # parser.add_argument("--data_path", required=True, type = str)
     parser.add_argument("--data_path", default = "new_data/final_albert_blank_eval.jsonl", type = str)
     parser.add_argument("--vocab_path", default = "new_data/unique_words_v3.txt", type = str)
-    parser.add_argument("--max_epochs", type=int, default = 10)
+    parser.add_argument("--max_epochs", type=int, default = 2)
     parser.add_argument("--max_char", type=int, default = 700)
     parser.add_argument("--batch_size", type=int, default = 150)
     parser.add_argument("--max_sent_len", type=int, default = 150)
@@ -95,6 +95,9 @@ def evaluate(net, data_loader):
         q = batch["q"]
         pas = batch["pred_ans_sent"]
         y = batch["label"]
+
+        if i == 5:
+            break
 
         # Tokenize pa, q, pas
         # TODO THIS IS AN ASSUMPTION TO TAKE THE LOWER OF EVERYTHING
@@ -182,8 +185,6 @@ if __name__ == "__main__":
 
     if config["cuda"]:
         model.cuda()
-    
-    
 
     model.train()
     for e in range(EPOCH):
@@ -201,6 +202,8 @@ if __name__ == "__main__":
             q = batch["q"]
             pas = batch["pred_ans_sent"]
             y = batch["label"]
+            if i == 5:
+                break
 
             # Tokenize pa, q, pas
             # TODO THIS IS AN ASSUMPTION TO TAKE THE LOWER OF EVERYTHING
