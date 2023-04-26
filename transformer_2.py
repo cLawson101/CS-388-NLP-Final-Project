@@ -16,7 +16,7 @@ def parse_args():
     # parser.add_argument("--data_path", required=True, type = str)
     parser.add_argument("--data_path", default = "new_data/final_albert_blank_eval.jsonl", type = str)
     parser.add_argument("--vocab_path", default = "new_data/unique_words_v3.txt", type = str)
-    parser.add_argument("--max_epochs", type=int, default = 1)
+    parser.add_argument("--max_epochs", type=int, default = 10)
     parser.add_argument("--max_char", type=int, default = 150)
     parser.add_argument("--batch_size", type=int, default = 150)
     parser.add_argument("--max_sent_len", type=int, default = 150)
@@ -91,8 +91,6 @@ def pretty_print(vocab):
 def evaluate(net, data_loader):
     final_acc = []
     for i, batch in enumerate(data_loader):
-        if i == 6:
-            break
         pa = batch["pred_ans"]
         q = batch["q"]
         pas = batch["pred_ans_sent"]
@@ -147,8 +145,11 @@ if __name__ == "__main__":
     # LOAD DATA
     data, label = load_data(config["data_path"])
 
-    data = data[:11250]
-    label = label[:11250]
+    # dataset_size = 11250
+    dataset_size = 450
+
+    data = data[:dataset_size]
+    label = label[:dataset_size]
 
     train_X, test_X, train_y, test_y = train_test_split(data[:11250], label[:11250], test_size=(1/3), random_state = 420)
 
@@ -185,7 +186,6 @@ if __name__ == "__main__":
     
 
     model.train()
-    print("IN MAIN LOOP")
     for e in range(EPOCH):
         loss_epoch = 0.0
         # print("%.4f,%2d,%2d,%2d,%2d,%.2f," % (config["lr"],
@@ -218,19 +218,13 @@ if __name__ == "__main__":
             tensor_pa_char = torch.LongTensor(np.array(char_pa))
             tensor_q_char = torch.LongTensor(np.array(char_q))
 
-            print("IN MODEL")
             prob = model(tensor_pa, tensor_q, tensor_pa_char, tensor_q_char)
-
-            print(prob.sum(axis = 1))
-            exit()
 
             loss = torch.sum(criterion(prob, y))
             loss_epoch += loss
             loss.backward()
             optimizer.step()
-            print("FINISHED BATCH")
 
-        print("EPOCH LOSS")
         print(loss_epoch)
         train_gen.reset()
         # print("%2d,%.4f," % (e, loss_epoch), end="")

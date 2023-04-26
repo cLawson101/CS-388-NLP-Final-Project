@@ -5,7 +5,7 @@ import numpy as np
 import math
 NEG_INF = -1e29
 
-DEBUG = True
+DEBUG = False
 ENCODER = False
 ATTENTION = True
 HEURISTIC = True
