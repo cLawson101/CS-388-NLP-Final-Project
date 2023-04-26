@@ -16,10 +16,11 @@ def parse_args():
     # parser.add_argument("--data_path", required=True, type = str)
     parser.add_argument("--data_path", default = "new_data/final_albert_blank_eval.jsonl", type = str)
     parser.add_argument("--vocab_path", default = "new_data/unique_words_v3.txt", type = str)
-    parser.add_argument("--max_epochs", type=int, default = 2)
+    parser.add_argument("--max_epochs", type=int, default = 3)
     parser.add_argument("--max_char", type=int, default = 700)
     parser.add_argument("--batch_size", type=int, default = 150)
     parser.add_argument("--max_sent_len", type=int, default = 150)
+    parser.add_argument("--dataset_size", type=int, default = 11250)
 
     
     # Model Stuff
@@ -89,7 +90,9 @@ def pretty_print(vocab):
     exit()
 
 def evaluate(net, data_loader):
-    final_acc = []
+    final_acc_total = []
+    final_acc_unans = []
+    final_acc_answerable = []
     for i, batch in enumerate(data_loader):
         pa = batch["pred_ans"]
         q = batch["q"]
@@ -117,9 +120,69 @@ def evaluate(net, data_loader):
         predictions = np.argmax(prob.detach().numpy(), axis = 1)
 
         acc = sum(predictions[i] == y[i] for i in range(len(predictions))).item()
-        final_acc.append(acc/100)
-    return (sum(final_acc) / len(final_acc))
+        final_acc_total.append(acc/100)
 
+        unans_acc = sum((predictions[i] == y[i]) for i in range(len(predictions)) if not y[i]).item()
+        total_unans = sum(1 for i in range(len(predictions)) if not y[i])
+        # print("unanswerable total: ", total_unans)
+        # print("unanswerable true positives/negatives: ", unans_acc)
+        final_acc_unans.append(unans_acc/100)
+
+        answerable_acc = sum((predictions[i] == y[i]) for i in range(len(predictions)) if y[i]).item()
+        total_ans = sum(1 for i in range(len(predictions)) if y[i])
+        # print("answerable total: ", total_ans)
+        # print("answerable true positives/negatives: ", answerable_acc)
+        final_acc_answerable.append(answerable_acc/100)
+
+    return avg_dataset(final_acc_answerable), avg_dataset(final_acc_unans), avg_dataset(final_acc_total)
+
+def eval_final(net, data_loader):
+    final_acc_total = []
+    final_acc_unans = []
+    final_acc_answerable = []
+    output_file = open("test.txt", "w", encoding="utf8")
+    headers = "context\tquestion\tpred_answer\tlabel\tpred_verify\n"
+    output_file.write(headers)
+    for i, batch in enumerate(data_loader):
+        pa = batch["pred_ans"]
+        q = batch["q"]
+        pas = batch["pred_ans_sent"]
+        y = batch["label"]
+
+        if i == 5:
+            break
+
+        # Tokenize pa, q, pas
+        # TODO THIS IS AN ASSUMPTION TO TAKE THE LOWER OF EVERYTHING
+        tok_pa = [word_tokenize(s.lower()) for s in pa]
+        tok_q = [word_tokenize(s.lower()) for s in q]
+        tok_pas = [word_tokenize(s.lower()) for s in pas]
+
+        emb_pa = [embed(s, master_vocab, max_sent_len) for s in tok_pa]
+        emb_q = [embed(s, master_vocab, max_sent_len) for s in tok_q]
+        emb_pas = [embed(s, master_vocab, max_sent_len) for s in tok_pas]
+
+        tensor_pa = torch.LongTensor(np.array(emb_pa))
+        tensor_q = torch.LongTensor(np.array(emb_q))
+        tensor_pas = torch.LongTensor(np.array(emb_pas))
+
+        prob = net(tensor_pa, tensor_q, tensor_pas)
+        predictions = np.argmax(prob.detach().numpy(), axis = 1)
+
+        for pred in range(len(predictions)):
+            to_print = "{}\t{}\t{}\t{}\t{}\n".format(str(pas[pred]), str(q[pred]), str(pa[pred]), str(y[pred].item()), str(predictions[pred]))
+            output_file.write(to_print)
+
+    return avg_dataset(final_acc_answerable), avg_dataset(final_acc_unans), avg_dataset(final_acc_total)
+
+def avg_dataset(dataset):
+    if len(dataset):
+        return sum(dataset) / len(dataset)
+    else:
+        # We could crash the program if the dataset (i.e. current total of unanswerable questions) is empty,
+        # But we'll return an error code instead
+        return -1
+    
 def char_tokenize(sent, char_max):
     char_rep = [0] * char_max
     i = 0
@@ -134,7 +197,9 @@ def char_tokenize(sent, char_max):
 
 if __name__ == "__main__":
     config = parse_args()
-    
+    #dataset_size = 11250
+    dataset_size = 450
+
     master_vocab = load_vocab(config["vocab_path"])
     # pretty_print(master_vocab)
 
@@ -143,10 +208,10 @@ if __name__ == "__main__":
     # LOAD DATA
     data, label = load_data(config["data_path"])
 
-    data = data[:11250]
-    label = label[:11250]
+    data = data[:dataset_size]
+    label = label[:dataset_size]
 
-    train_X, test_X, train_y, test_y = train_test_split(data[:11250], label[:11250], test_size=(1/3), random_state = 420)
+    train_X, test_X, train_y, test_y = train_test_split(data[:dataset_size], label[:dataset_size], test_size=(1/3), random_state = 420)
 
     train_gen = BatchGen(train_X, train_y, config["batch_size"], True)
     test_gen = BatchGen(test_X, test_y, config["batch_size"], True)
@@ -235,6 +300,8 @@ if __name__ == "__main__":
             optimizer.step()
         train_gen.reset()
         print("%2d,%.4f," % (e, loss_epoch), end="")
-        test_loss = evaluate(model, test_gen)
+
+        ans_acc, unans_acc, total_acc = evaluate(model, test_gen)
         test_gen.reset()
-        print("%.4f" % (test_loss))
+        print("%.4f, %.4f, %.4f" % (ans_acc, unans_acc, total_acc))
+    eval_final(model, test_gen)
