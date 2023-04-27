@@ -1,0 +1,26 @@
+# Albert training on blank
+python final_proj_run_v3.py --do_train --dataset squad_v2_edited/blank_train_squad_v2.json --model albert-base-v2 --task qa --output_dir ./albert_blank_trained/
+
+# Albert evaluating
+python final_proj_run_v3.py --do_eval --dataset squad_v2_edited/blank_test_squad_v2.json --model ./albert_blank_trained/ --task qa --output_dir ./albert_blank_eval/
+
+# Albert training on noans
+python final_proj_run_v3.py --do_train --dataset squad_v2_edited/noans_train_squad_v2.json --model albert-base-v2 --task qa --output_dir ./albert_noans_trained/
+
+# Albert evaluating
+python final_proj_run_v3.py --do_eval --dataset squad_v2_edited/noans_test_squad_v2.json --model ./albert_noans_trained/ --task qa --output_dir ./albert_noans_eval/
+
+
+
+
+# Roberta training on blank
+python final_proj_run_v3.py --do_train --dataset squad_v2_edited/blank_train_squad_v2.json --model roberta-base --task qa --output_dir ./roberta_blank_trained/
+
+# Roberta evaluating
+python final_proj_run_v3.py --do_eval --dataset squad_v2_edited/blank_test_squad_v2.json --model ./roberta_blank_trained/ --task qa --output_dir ./roberta_blank_eval/
+
+# Roberta training on noans
+python final_proj_run_v3.py --do_train --dataset squad_v2_edited/noans_train_squad_v2.json --model roberta-base --task qa --output_dir ./roberta_noans_trained/
+
+# Roberta evaluating
+python final_proj_run_v3.py --do_eval --dataset squad_v2_edited/noans_test_squad_v2.json --model ./roberta_noans_trained/ --task qa --output_dir ./roberta_noans_eval/
