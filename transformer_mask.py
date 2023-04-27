@@ -14,8 +14,8 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--name", type = str, default = "testing")
     # parser.add_argument("--data_path", required=True, type = str)
-    parser.add_argument("--data_path", default = "new_data/final_albert_blank_eval.jsonl", type = str)
-    parser.add_argument("--output_data_path", default = "output_data/final_albert_blank_output.tsv", type = str)
+    parser.add_argument("--data_path", default = "new_data/updated_trimmed_data.csv", type = str)
+    parser.add_argument("--output_data_path", default = "output_data/erasure_output.tsv", type = str)
     parser.add_argument("--vocab_path", default = "new_data/unique_words_v3.txt", type = str)
     parser.add_argument("--max_epochs", type=int, default = 10)
     parser.add_argument("--max_char", type=int, default = 700)
@@ -26,7 +26,7 @@ def parse_args():
     
     # Model Stuff
     parser.add_argument("--nhead", type=int, default = 1)
-    parser.add_argument("--num_layers", type=int, default = 1)
+    parser.add_argument("--num_layers", type=int, default = 4)
     parser.add_argument("--d_model", type=int, default = 200)
     parser.add_argument("--hidden_size", type=int, default = 200)
     parser.add_argument("--dropout", type=int, default = 0)
@@ -35,7 +35,7 @@ def parse_args():
     parser.add_argument('--b1', type=float, default=0.9)
     parser.add_argument('--b2', type=float, default=0.999)
     parser.add_argument('--e', type=float, default=1e-8)
-    parser.add_argument('--lr', type=float, default=4e-4) # 8e-4
+    parser.add_argument('--lr', type=float, default=1e-4) # 8e-4
     parser.add_argument('--decay', type=float, default=0)
     
     # Turn on CUDA or not
@@ -47,11 +47,22 @@ def load_data(path):
     data = []
     label = []
 
-    with open(path, 'r') as f:
-        for line in f:
-            case = json.loads(line)
-            data.append(case)
-            label.append(case['is_impossible'])
+    temp = path.split(".")
+    if temp[1] == "jsonl":
+        with open(path, 'r') as f:
+            for line in f:
+                case = json.loads(line)
+                data.append(case)
+                label.append(case['is_impossible'])
+    elif temp[1] == "csv":
+        values = pd.read_csv(path)
+        # values = values.to_dict(orient="index")
+        for index, row in values.iterrows():
+            data.append(row)
+            label.append(row['is_impossible'])
+            # print(row['has_answer'])
+    else:
+        print("Unexpected Data Type")
     return data, label
 
 def load_vocab(path):
@@ -188,8 +199,8 @@ def char_tokenize(sent, char_max):
 
 if __name__ == "__main__":
     config = parse_args()
-    dataset_size = 11250
-    # dataset_size = 450
+    # dataset_size = 11250
+    dataset_size = 450
 
     master_vocab = load_vocab(config["vocab_path"])
     # pretty_print(master_vocab)
