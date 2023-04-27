@@ -130,7 +130,7 @@ def evaluate(net, data_loader):
 
         acc = sum(predictions[i] == y[i] for i in range(len(predictions))).item()
         final_acc_total.append(acc/100)
-
+        
         unans_acc = sum((predictions[i] == y[i]) for i in range(len(predictions)) if not y[i]).item()
         total_unans = sum(1 for i in range(len(predictions)) if not y[i])
         # print("unanswerable total: ", total_unans)
@@ -144,6 +144,9 @@ def evaluate(net, data_loader):
         final_acc_answerable.append(answerable_acc/100)
 
     return avg_dataset(final_acc_answerable), avg_dataset(final_acc_unans), avg_dataset(final_acc_total)
+
+def accuracy(predictions, bool):
+    
 
 def eval_final(net, data_loader):
     output_file = open(config["output_data_path"], "w", encoding="utf8")
