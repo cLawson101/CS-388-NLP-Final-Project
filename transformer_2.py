@@ -15,6 +15,7 @@ def parse_args():
     parser.add_argument("--name", type = str, default = "testing")
     # parser.add_argument("--data_path", required=True, type = str)
     parser.add_argument("--data_path", default = "new_data/final_albert_blank_eval.jsonl", type = str)
+    parser.add_argument("--output_data_path", default = "output_data_2/final_albert_blank_output.tsv", type = str)
     parser.add_argument("--vocab_path", default = "new_data/unique_words_v3.txt", type = str)
     parser.add_argument("--max_epochs", type=int, default = 10)
     parser.add_argument("--max_char", type=int, default = 150)
@@ -89,7 +90,9 @@ def pretty_print(vocab):
     exit()
 
 def evaluate(net, data_loader):
-    final_acc = []
+    final_acc_total = []
+    final_acc_unans = []
+    final_acc_answerable = []
     for i, batch in enumerate(data_loader):
         pa = batch["pred_ans"]
         q = batch["q"]
@@ -117,9 +120,59 @@ def evaluate(net, data_loader):
         predictions = np.argmax(prob.detach().numpy(), axis = 1)
 
         acc = sum(predictions[i] == y[i] for i in range(len(predictions))).item()
-        final_acc.append(acc/100)
-        print("GOT ACC OF: %.4f" % (acc / 100))
-    return (sum(final_acc) / len(final_acc))
+        final_acc_total.append(acc/100)
+
+        unans_acc = sum((predictions[i] == y[i]) for i in range(len(predictions)) if not y[i]).item()
+        total_unans = sum(1 for i in range(len(predictions)) if not y[i])
+        final_acc_unans.append(unans_acc/100)
+
+        answerable_acc = sum((predictions[i] == y[i]) for i in range(len(predictions)) if y[i]).item()
+        total_ans = sum(1 for i in range(len(predictions)) if y[i])
+        final_acc_answerable.append(answerable_acc/100)
+
+    return avg_dataset(final_acc_answerable), avg_dataset(final_acc_unans), avg_dataset(final_acc_total)
+
+def eval_final(net, data_loader):
+    output_file = open(config["output_data_path"], "w", encoding="utf8")
+    headers = "context\tquestion\tpred_answer\tlabel\tpred_verify\n"
+    output_file.write(headers)
+    for i, batch in enumerate(data_loader):
+        pa = batch["pred_ans"]
+        q = batch["q"]
+        pas = batch["pred_ans_sent"]
+        y = batch["label"]
+
+        # Tokenize pa, q, pas
+        # TODO THIS IS AN ASSUMPTION TO TAKE THE LOWER OF EVERYTHING
+        tok_pa = [word_tokenize(s.lower()) for s in pa]
+        tok_q = [word_tokenize(s.lower()) for s in q]
+
+        emb_pa = [embed(s, master_vocab, max_sent_len) for s in tok_pa]
+        emb_q = [embed(s, master_vocab, max_sent_len) for s in tok_q]
+
+        char_pa = [char_tokenize(sent, char_max) for sent in tok_pa]
+        char_q = [char_tokenize(sent, char_max) for sent in tok_q]
+
+        tensor_pa = torch.LongTensor(np.array(emb_pa))
+        tensor_q = torch.LongTensor(np.array(emb_q))
+
+        tensor_pa_char = torch.LongTensor(np.array(char_pa))
+        tensor_q_char = torch.LongTensor(np.array(char_q))
+
+        prob = net(tensor_pa, tensor_q, tensor_pa_char, tensor_q_char)
+        predictions = np.argmax(prob.detach().numpy(), axis = 1)
+
+        for pred in range(len(predictions)):
+            to_print = "{}\t{}\t{}\t{}\t{}\n".format(str(pas[pred]), str(q[pred]), str(pa[pred]), str(y[pred].item()), str(predictions[pred]))
+            output_file.write(to_print)
+
+def avg_dataset(dataset):
+    if len(dataset):
+        return sum(dataset) / len(dataset)
+    else:
+        # We could crash the program if the dataset (i.e. current total of unanswerable questions) is empty,
+        # But we'll return an error code instead
+        return -1
 
 def char_tokenize(sent, char_max):
     char_rep = [0] * char_max
@@ -188,13 +241,13 @@ if __name__ == "__main__":
     model.train()
     for e in range(EPOCH):
         loss_epoch = 0.0
-        # print("%.4f,%2d,%2d,%2d,%2d,%.2f," % (config["lr"],
-        #                                     config["nhead"],
-        #                                     config["num_layers"],
-        #                                     config["d_model"],
-        #                                     config["hidden_size"],
-        #                                     config["dropout"]
-        #                                     ), end = "")
+        print("%.4f,%2d,%2d,%2d,%2d,%.2f," % (config["lr"],
+                                            config["nhead"],
+                                            config["num_layers"],
+                                            config["d_model"],
+                                            config["hidden_size"],
+                                            config["dropout"]
+                                            ), end = "")
         for i, batch in enumerate(train_gen):
             optimizer.zero_grad()
             pa = batch["pred_ans"]
@@ -225,9 +278,9 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
 
-        print(loss_epoch)
         train_gen.reset()
-        # print("%2d,%.4f," % (e, loss_epoch), end="")
-        test_loss = evaluate(model, test_gen)
+        print("%2d,%.4f," % (e, loss_epoch), end="")
+        ans_acc, unans_acc, total_acc = evaluate(model, test_gen)
         test_gen.reset()
-        # print("%.4f" % (test_loss))
+        print("%.4f, %.4f, %.4f" % (ans_acc, unans_acc, total_acc))
+    eval_final(model, test_gen)
