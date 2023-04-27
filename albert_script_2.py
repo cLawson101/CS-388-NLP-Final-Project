@@ -1,7 +1,7 @@
 
 # Test script that can be run in python on non-linux machines
 import os
-datasets = ["roberta_noans", "roberta_blank", "albert_noans", "albert_blank"]
+datasets = ["albert_noans", "albert_blank"]
 learning_rates = [0.001, 0.0001]
 # nums_epoch = [10, 15, 20, 30, 40, 50]
 nums_layers = [1, 4]
