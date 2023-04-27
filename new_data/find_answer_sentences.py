@@ -46,6 +46,12 @@ def get_impossiblity(example):
 def csv_to_json(csvFilePath, jsonFilePath):
     jsonArray = []
     df = pd.read_csv(csvFilePath)
+    df['predicted_sentence'] = df.apply(get_ans_sentence, axis=1)
+    df['is_impossible'] = df.apply(get_impossiblity, axis=1)
+    df.to_json(jsonFilePath, orient="records")
+    return
+    jsonArray = []
+    df = pd.read_csv(csvFilePath)
     df['predicted_sentence'] = df.apply(get_ans_sentence, axis=0)
     df.to_csv(output_csv, index=False)
     #read csv file
@@ -110,7 +116,8 @@ def csv_to_csv(csvFilePath, output):
 
             
 
-json_file = "Trimmed_data.jsonl"
+json_file = "new_data/updated_trimmed_data.json"
 csv_file = "new_data/TRIMMED_DATA.csv"
-output_csv = "new_data/updated_Trimmed_data.csv"
+output_csv = "new_data/updated_trimmed_data.csv"
 csv_to_csv(csv_file, output_csv)
+csv_to_json(csv_file, json_file)
