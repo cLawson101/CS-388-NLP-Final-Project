@@ -135,12 +135,10 @@ def evaluate(net, data_loader):
     return avg_dataset(final_acc_answerable), avg_dataset(final_acc_unans), avg_dataset(final_acc_total)
 
 def eval_final(net, data_loader):
-    final_acc_total = []
-    final_acc_unans = []
-    final_acc_answerable = []
     output_file = open(config["output_data_path"], "w", encoding="utf8")
     headers = "context\tquestion\tpred_answer\tlabel\tpred_verify\n"
     output_file.write(headers)
+    
     for i, batch in enumerate(data_loader):
         pa = batch["pred_ans"]
         q = batch["q"]
@@ -167,8 +165,6 @@ def eval_final(net, data_loader):
         for pred in range(len(predictions)):
             to_print = "{}\t{}\t{}\t{}\t{}\n".format(str(pas[pred]), str(q[pred]), str(pa[pred]), str(y[pred].item()), str(predictions[pred]))
             output_file.write(to_print)
-
-    return avg_dataset(final_acc_answerable), avg_dataset(final_acc_unans), avg_dataset(final_acc_total)
 
 def avg_dataset(dataset):
     if len(dataset):
