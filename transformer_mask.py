@@ -15,7 +15,7 @@ def parse_args():
     parser.add_argument("--name", type = str, default = "testing")
     # parser.add_argument("--data_path", required=True, type = str)
     parser.add_argument("--data_path", default = "new_data/updated_trimmed_data.csv", type = str)
-    parser.add_argument("--output_data_path", default = "output_data/erasure_output.tsv", type = str)
+    parser.add_argument("--output_data_path", default = "output_data/erasure_output_updated.tsv", type = str)
     parser.add_argument("--vocab_path", default = "new_data/unique_words_v3.txt", type = str)
     parser.add_argument("--max_epochs", type=int, default = 10)
     parser.add_argument("--max_char", type=int, default = 700)
@@ -102,9 +102,12 @@ def pretty_print(vocab):
     exit()
 
 def evaluate(net, data_loader):
-    final_acc_total = []
-    final_acc_unans = []
-    final_acc_answerable = []
+    final_num_total = []
+    final_num_unans = []
+    final_num_answerable = []
+    final_pos_total = []
+    final_pos_unans = []
+    final_pos_answerable = []
     for i, batch in enumerate(data_loader):
         pa = batch["pred_ans"]
         q = batch["q"]
@@ -128,26 +131,45 @@ def evaluate(net, data_loader):
         prob = net(tensor_pa, tensor_q, tensor_pas)
         predictions = np.argmax(prob.detach().numpy(), axis = 1)
 
-        acc = sum(predictions[i] == y[i] for i in range(len(predictions))).item()
-        final_acc_total.append(acc/100)
+        total, positives = accuracy(predictions, y, False, True)
+        final_num_total.append(total)
+        final_pos_total.append(positives)
         
-        unans_acc = sum((predictions[i] == y[i]) for i in range(len(predictions)) if not y[i]).item()
-        total_unans = sum(1 for i in range(len(predictions)) if not y[i])
-        # print("unanswerable total: ", total_unans)
-        # print("unanswerable true positives/negatives: ", unans_acc)
-        final_acc_unans.append(unans_acc/100)
+        unans_total, unans_positives = accuracy(predictions, y, True, True)
+        # print("unanswerable total: ", unans_total)
+        # print("unanswerable true positives/negatives: ", unans_positives)
+        final_num_unans.append(unans_total)
+        final_pos_unans.append(unans_positives)
+        
+        ans_total, ans_positives = accuracy(predictions, y, True, False)
+        # print("answerable total: ", ans_total)
+        # print("answerable true positives/negatives: ", ans_positives)
+        final_num_answerable.append(ans_total)
+        final_pos_answerable.append(ans_positives)
+        
+    return avg_dataset(final_num_answerable, final_pos_answerable), avg_dataset(final_num_unans, final_pos_unans), avg_dataset(final_num_total, final_pos_total)
 
-        answerable_acc = sum((predictions[i] == y[i]) for i in range(len(predictions)) if y[i]).item()
-        total_ans = sum(1 for i in range(len(predictions)) if y[i])
-        # print("answerable total: ", total_ans)
-        # print("answerable true positives/negatives: ", answerable_acc)
-        final_acc_answerable.append(answerable_acc/100)
+def accuracy(predictions, gold_truth, has_condition, negate):
+    result = []
+    for i in range(len(predictions)):
+        if not has_condition or negate != gold_truth[i]:
+            # Either gold_truth is true or negate is true (and we're looking for gold_truth == false), but not both
+            result.append(1 if predictions[i] == gold_truth[i] else 0)
 
-    return avg_dataset(final_acc_answerable), avg_dataset(final_acc_unans), avg_dataset(final_acc_total)
+    total_elems = len(result)
+    true_positives = sum(result)
+    return total_elems, true_positives
 
-def accuracy(predictions, bool):
+def avg_dataset(num, pos):
+    num_elements = sum(num)
+    num_positives = sum(pos)
+    if num_elements > 0:
+        return num_positives / num_elements
+    else:
+        # We could crash the program if the dataset (i.e. current total of unanswerable questions) is empty,
+        # But we'll return an error code instead
+        return -1
     
-
 def eval_final(net, data_loader):
     output_file = open(config["output_data_path"], "w", encoding="utf8")
     headers = "context\tquestion\tpred_answer\tlabel\tpred_verify\n"
@@ -179,14 +201,6 @@ def eval_final(net, data_loader):
         for pred in range(len(predictions)):
             to_print = "{}\t{}\t{}\t{}\t{}\n".format(str(pas[pred]), str(q[pred]), str(pa[pred]), str(y[pred].item()), str(predictions[pred]))
             output_file.write(to_print)
-
-def avg_dataset(dataset):
-    if len(dataset):
-        return sum(dataset) / len(dataset)
-    else:
-        # We could crash the program if the dataset (i.e. current total of unanswerable questions) is empty,
-        # But we'll return an error code instead
-        return -1
     
 def char_tokenize(sent, char_max):
     char_rep = [0] * char_max
