@@ -4,6 +4,8 @@ By Christopher Lawson and Rishi Salem
 ## Reader Implementation
 In this current repo we do not include the code to train our two reader models (RoBERTa and ALBERT) but this code is the exact same as our Assignment 3 code just that we are training on the squad_v2 dataset and the RoBERTa and ALBERT models.
 
+An example of the script to run is `final_proj_run_v3.py` with instructions on how to run in `example_run.txt`.
+
 ## Data
 All data that was output from the reader implementation was saved in the `new_data\` folder. but specifically the following files:
 - `final_albert_blank_eval.jsonl`
